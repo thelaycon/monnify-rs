@@ -1,16 +1,18 @@
 use crate::constants::MONNIFY_API_BASE_URL;
 use crate::constants::MONNIFY_AUTHENTICATION_ENDPOINT;
-use crate::monnify_client::client::Client;
+use crate::monnify_client::client::MonnfiyClient;
 use base64::Engine;
 use base64::engine::general_purpose;
+use reqwest::header::TRANSFER_ENCODING;
 use serde::Deserialize;
+use tracing;
 
 #[derive(Default, Deserialize, Debug, Clone)]
 pub struct ResponseBody {
     #[serde(rename = "accessToken")]
     pub access_token: String,
     #[serde(rename = "expiresIn")]
-    pub expires_in: u32,
+    pub expires_in: i64,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -26,12 +28,12 @@ pub struct AccessTokenResponse {
 }
 
 pub struct Auth<'a> {
-    client: &'a Client,
+    monnify_client: &'a MonnfiyClient,
 }
 
 impl<'a> Auth<'a> {
-    pub fn new(client: &'a Client) -> Self {
-        Self { client }
+    pub fn new(monnify_client: &'a MonnfiyClient) -> Self {
+        Self { monnify_client }
     }
 
     pub async fn generate_access_token(
@@ -39,11 +41,12 @@ impl<'a> Auth<'a> {
     ) -> Result<AccessTokenResponse, Box<dyn std::error::Error>> {
         let encoded_api_key = general_purpose::STANDARD.encode(format!(
             "{}:{}",
-            self.client.api_key, self.client.secret_key
+            self.monnify_client.api_key, self.monnify_client.secret_key
         ));
 
-        let client = reqwest::Client::new();
-        let res = client
+        let res = self
+            .monnify_client
+            .client
             .post(format!(
                 "{}{}",
                 MONNIFY_API_BASE_URL, MONNIFY_AUTHENTICATION_ENDPOINT
@@ -53,10 +56,16 @@ impl<'a> Auth<'a> {
             .send()
             .await?;
 
-        println!("Response status: {}", res.status());
+        tracing::info!("Response status: {}", res.status());
 
         if res.status().is_success() {
             let response_body: AccessTokenResponse = res.json().await?;
+            let jwt_token = &response_body.response_body.access_token;
+
+            if let Ok(mut lock) = self.monnify_client.access_token.write() {
+                *lock = Some(jwt_token.to_owned());
+                tracing::info!("Access token generated successfully");
+            }
             Ok(response_body)
         } else {
             let error_text = res.text().await?;
