@@ -17,7 +17,7 @@ impl Client {
         }
     }
 
-    pub fn auth(&self) -> Auth {
+    pub fn auth(&self) -> Auth<'_> {
         Auth::new(self)
     }
 }
