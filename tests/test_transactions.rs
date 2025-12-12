@@ -33,8 +33,5 @@ async fn test_initialize_trasaction() {
             println!("Error: {}", err);
         });
 
-    println!(
-        "Request Successful: {}",
-        response.unwrap().request_successful
-    );
+    assert_eq!(response.unwrap().request_successful, true);
 }
