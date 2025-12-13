@@ -1,58 +1,79 @@
 use crate::constants::MONNIFY_API_BASE_URL;
-use crate::constants::MONNIFY_INIT_TRANSACTION_ENDPOINT;
+use crate::constants::{MONNIFY_INIT_BANK_TRANSFER_ENDPOINT, MONNIFY_INIT_TRANSACTION_ENDPOINT};
 use crate::monnify_client::client::MonnfiyClient;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InitializeTransactionRequest {
     pub amount: i64,
-    #[serde(rename = "customerEmail")]
     pub customer_email: String,
-    #[serde(rename = "paymentReference")]
     pub payment_reference: String,
-    #[serde(rename = "paymentDescription")]
     pub payment_description: String,
-    #[serde(rename = "currencyCode")]
     pub currency_code: String,
-    #[serde(rename = "redirectUrl")]
     pub redirect_url: String,
-    #[serde(rename = "contractCode")]
     pub contract_code: String,
-    #[serde(rename = "paymentMethods")]
     pub payment_methods: Vec<String>,
     pub metadata: Option<HashMap<String, Value>>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ResponseBody {
-    #[serde(rename = "transactionReference")]
+#[serde(rename_all = "camelCase")]
+pub struct InitializeTransactionResponseBody {
     pub transaction_reference: String,
-    #[serde(rename = "paymentReference")]
     pub payment_reference: String,
-    #[serde(rename = "merchantName")]
     pub merchant_name: String,
-    #[serde(rename = "apiKey")]
     pub api_key: String,
-    #[serde(rename = "redirectUrl")]
     pub redirect_url: String,
-    #[serde(rename = "enabledPaymentMethod")]
     pub enabled_payment_method: Vec<String>,
-    #[serde(rename = "checkoutUrl")]
     pub checkout_url: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InitializeTransactionResponse {
-    #[serde(rename = "requestSuccessful")]
     pub request_successful: bool,
-    #[serde(rename = "responseMessage")]
     pub response_message: String,
-    #[serde(rename = "responseCode")]
     pub response_code: String,
-    #[serde(rename = "responseBody")]
-    pub response_body: ResponseBody,
+    pub response_body: InitializeTransactionResponseBody,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PayWithBankTransferRequest {
+    pub transaction_reference: String,
+    pub bank_code: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PayWithBankAccountResponse {
+    pub request_successful: bool,
+    pub response_message: String,
+    pub response_code: String,
+    pub response_body: PayWithBankAccountBody,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PayWithBankAccountBody {
+    pub account_number: String,
+    pub account_name: String,
+    pub bank_name: String,
+    pub bank_code: String,
+    pub account_duration_seconds: u32,
+    pub ussd_payment: String,
+    pub request_time: String,
+    pub expires_on: String,
+    pub transaction_reference: String,
+    pub payment_reference: String,
+    pub amount: f64,
+    pub fee: f64,
+    pub total_payable: f64,
+    pub collection_channel: String,
+    pub product_information: Option<String>,
 }
 
 pub struct Transaction<'a> {
@@ -73,26 +94,7 @@ impl<'a> Transaction<'a> {
             MONNIFY_API_BASE_URL, MONNIFY_INIT_TRANSACTION_ENDPOINT
         );
 
-        let token_guard = self
-            .monnify_client
-            .access_token
-            .read()
-            .map_err(|_| "Failed to acquire access token lock")?;
-
-        let token = match &*token_guard {
-            Some(token) => {
-                println!("Access token found");
-                token.clone()
-            }
-            None => {
-                println!("Access token not found");
-                return Err(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Access token not found",
-                )));
-            }
-        };
-
+        let token = self.monnify_client.get_access_token();
         // Make the API request to initialize transaction
         let response = self
             .monnify_client
@@ -114,6 +116,40 @@ impl<'a> Transaction<'a> {
             Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "Failed to initialize transaction",
+            )))
+        }
+    }
+
+    pub async fn pay_with_bank_transfer(
+        &self,
+        pay_with_bank_transfer_request: PayWithBankTransferRequest,
+    ) -> Result<PayWithBankAccountResponse, Box<dyn std::error::Error>> {
+        // Make requests to pay with bank transfer. Bank code and payment reference from initialize transacton is needed
+        let bank_payment_endpoint: String = format!(
+            "{}{}",
+            MONNIFY_API_BASE_URL, MONNIFY_INIT_BANK_TRANSFER_ENDPOINT
+        );
+
+        let token = self.monnify_client.get_access_token();
+
+        let response = self
+            .monnify_client
+            .client
+            .post(bank_payment_endpoint)
+            .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {}", token))
+            .json(&pay_with_bank_transfer_request)
+            .send()
+            .await?;
+
+        if response.status().is_success() {
+            let response_body: PayWithBankAccountResponse = response.json().await?;
+            Ok(response_body)
+        } else {
+            tracing::error!("Failed to make bank transfer");
+            Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to make bank transfer",
             )))
         }
     }

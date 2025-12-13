@@ -3,27 +3,22 @@ use crate::constants::MONNIFY_AUTHENTICATION_ENDPOINT;
 use crate::monnify_client::client::MonnfiyClient;
 use base64::Engine;
 use base64::engine::general_purpose;
-use reqwest::header::TRANSFER_ENCODING;
 use serde::Deserialize;
 use tracing;
 
 #[derive(Default, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ResponseBody {
-    #[serde(rename = "accessToken")]
     pub access_token: String,
-    #[serde(rename = "expiresIn")]
     pub expires_in: i64,
 }
 
 #[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AccessTokenResponse {
-    #[serde(rename = "requestSuccessful")]
-    pub response_successful: bool,
-    #[serde(rename = "responseMessage")]
+    pub request_successful: bool,
     pub response_message: String,
-    #[serde(rename = "responseCode")]
     pub response_code: String,
-    #[serde(rename = "responseBody")]
     pub response_body: ResponseBody,
 }
 

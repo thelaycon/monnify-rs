@@ -8,5 +8,5 @@ async fn test_authenticate() {
     let response = client.auth().generate_access_token().await.map_err(|err| {
         eprintln!("Error: {}", err);
     });
-    assert_eq!(response.unwrap().response_successful, true);
+    assert_eq!(response.unwrap().request_successful, true);
 }

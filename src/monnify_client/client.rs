@@ -28,4 +28,12 @@ impl MonnfiyClient {
     pub fn transaction(&self) -> Transaction<'_> {
         Transaction::new(self)
     }
+
+    pub fn get_access_token(&self) -> String {
+        self.access_token
+            .read()
+            .ok()
+            .and_then(|guard| guard.clone())
+            .unwrap_or_default()
+    }
 }

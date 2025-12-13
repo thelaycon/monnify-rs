@@ -1,5 +1,8 @@
 use monnify::monnify_client::client::MonnfiyClient;
-use monnify::resources::transactions::{InitializeTransactionRequest, InitializeTransactionResponse, PayWithBankTransferRequest, PayWithBankTransferResponse};
+use monnify::resources::transactions::{
+    InitializeTransactionRequest, InitializeTransactionResponse, PayWithBankAccountResponse,
+    PayWithBankTransferRequest,
+};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -46,33 +49,38 @@ async fn test_pay_with_bank_transfer() {
     });
 
     let transaction = InitializeTransactionRequest {
-            amount: 1000,
-            customer_email: String::from("test@example.com"),
-            payment_reference: Uuid::new_v4().simple().to_string(),
-            payment_description: String::from("Test Payment"),
-            currency_code: String::from("NGN"),
-            contract_code: String::from("5867418298"),
-            redirect_url: String::from("https://example.com/redirect"),
-            payment_methods: vec![String::from("CARD"), String::from("ACCOUNT_TRANSFER")],
-            metadata: Some(HashMap::new()),
-        };
+        amount: 1000,
+        customer_email: String::from("test@example.com"),
+        payment_reference: Uuid::new_v4().simple().to_string(),
+        payment_description: String::from("Test Payment"),
+        currency_code: String::from("NGN"),
+        contract_code: String::from("5867418298"),
+        redirect_url: String::from("https://example.com/redirect"),
+        payment_methods: vec![String::from("CARD"), String::from("ACCOUNT_TRANSFER")],
+        metadata: Some(HashMap::new()),
+    };
 
-        println!("Transaction Request: {:?}", transaction);
+    println!("Transaction Request: {:?}", transaction);
 
-        let transaction_response: Result<InitializeTransactionResponse, ()> = client
-            .transaction()
-            .initialize_transaction(transaction)
-            .await
-            .map_err(|err| {
-                println!("Error: {}", err);
-            });
+    let transaction_response: Result<InitializeTransactionResponse, ()> = client
+        .transaction()
+        .initialize_transaction(transaction)
+        .await
+        .map_err(|err| {
+            println!("Error: {}", err);
+        });
 
-    let  bank_transfer_request: PayWithBankTransferRequest = PayWithBankTransferRequest{
-        transaction_reference: transaction_response.unwrap().response_body.transaction_reference,
-        bank_code: String::from("058")
-    }
+    let bank_transfer_request: PayWithBankTransferRequest = PayWithBankTransferRequest {
+        transaction_reference: transaction_response
+            .unwrap()
+            .response_body
+            .transaction_reference,
+        bank_code: String::from("058"),
+    };
 
-    let response : Result<PayWithBankTransferResponse, ()> = client
+    println!("Bank Transfer Request: {:?}", bank_transfer_request);
+
+    let response: Result<PayWithBankAccountResponse, ()> = client
         .transaction()
         .pay_with_bank_transfer(bank_transfer_request)
         .await
